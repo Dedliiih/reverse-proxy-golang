@@ -1,11 +1,15 @@
 package main
 
 import (
+	"fmt"
 	"log"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
+	"os"
 	"time"
+
+	"github.com/joho/godotenv"
 )
 
 func handleHello(w http.ResponseWriter, r *http.Request) {
@@ -14,23 +18,27 @@ func handleHello(w http.ResponseWriter, r *http.Request) {
 	w.Write([]byte("Hello World"))
 }
 
-func setupProxy() *httputil.ReverseProxy {
+func setupProxy(targetURL string) (*httputil.ReverseProxy, error) {
     log.Println("Setting up reverse proxy to NestJS server at http://localhost:3000")
 
-	target, err := url.Parse("http://localhost:3000")
+	target, err := url.Parse(targetURL)
 
 	if err != nil {
-		log.Fatal("Error parsing target URL:", err)
+		return nil, fmt.Errorf("invalid target URL: %w", err)
 	}
 
 	proxy := httputil.NewSingleHostReverseProxy(target)
-	return proxy
+	return proxy, nil
 }
 
 func main() {
+	godotenv.Load()
     mux := http.NewServeMux()
-    proxy := setupProxy()
+    proxy, err := setupProxy(os.Getenv("TARGET_URL"))
 
+    if err != nil {
+        log.Fatal(err)
+    }
 
 	mux.Handle("/", proxy)
 	mux.HandleFunc("/hello", handleHello)
