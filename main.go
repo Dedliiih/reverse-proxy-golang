@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"log"
+	"log/slog"
 	"net/http"
 	"net/http/httputil"
 	"net/url"
@@ -31,26 +32,48 @@ func setupProxy(targetURL string) (*httputil.ReverseProxy, error) {
 	return proxy, nil
 }
 
+func getTargetUrl() string {
+	targetURL := os.Getenv("TARGET_URL")
+	if targetURL == "" {
+		log.Fatal("TARGET_URL environment variable is not set")
+	}
+	return targetURL
+}
+
 func main() {
 	godotenv.Load()
+
+    logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
+		Level: slog.LevelInfo,
+	}))
+
     mux := http.NewServeMux()
-    proxy, err := setupProxy(os.Getenv("TARGET_URL"))
+
+	targetURL := getTargetUrl()
+    proxy, err := setupProxy(targetURL)
 
     if err != nil {
         log.Fatal(err)
     }
 
+    logger.Info("reverse proxy configured", "target", targetURL)
+
 	mux.Handle("/", proxy)
 	mux.HandleFunc("/hello", handleHello)
 
+	port := os.Getenv("PORT")
+	if port == "" {
+		port = "8080"
+	}
 	
 	server := &http.Server{
-		Addr: ":8080",
+		Addr: ":" + port,
 		Handler: mux,
 		ReadTimeout: 10 * time.Second,
 		WriteTimeout: 10 * time.Second,
 		MaxHeaderBytes: 1 << 20,
 	}
 
+	logger.Info("Starting server", "port", port)
 	log.Fatal(server.ListenAndServe())
 }
